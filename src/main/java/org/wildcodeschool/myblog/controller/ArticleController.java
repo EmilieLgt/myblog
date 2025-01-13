@@ -8,6 +8,7 @@ import org.wildcodeschool.myblog.model.Article;
 import org.wildcodeschool.myblog.repository.ArticleRepository;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.List;
 
 @RestController
@@ -38,6 +39,33 @@ public class ArticleController {
         }
 
         return ResponseEntity.ok(article);
+    }
+
+    @GetMapping("/search-title")
+    public ResponseEntity<List<Article>> getArticlesByTitle(@RequestParam String searchTerms) {
+        List<Article> articles = articleRepository.findByTitle(searchTerms);
+        if (articles.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(articles);
+    }
+
+    @GetMapping("/search-date")
+    public ResponseEntity<List<Article>> getArticleByDate(@RequestParam LocalDateTime searchDate) {
+        List<Article> articles = articleRepository.findCreatedAtAfter(searchDate);
+        if (articles.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(articles);
+    }
+
+    @GetMapping("/latest")
+    public ResponseEntity<List<Article>> getLatestArticles() {
+        List<Article> articles = articleRepository.findTop5ByOrderByCreatedAtDesc();
+        if (articles.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(articles);
     }
 
     @PostMapping
