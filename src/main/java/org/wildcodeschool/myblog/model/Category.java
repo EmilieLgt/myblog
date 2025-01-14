@@ -2,6 +2,8 @@ package org.wildcodeschool.myblog.model;
 
 import jakarta.persistence.*;
 
+import java.util.List;
+
 @Entity
 public class Category {
     @Id
@@ -27,4 +29,17 @@ public class Category {
     public void setName(String name) {
         this.name = name;
     }
+
+    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL)
+    private List<Article> articles;
+
+    // Ajouter les getters et setters
+    public List<Article> getArticles() {
+        return articles;
+    }
+
+    public void setArticles(List<Article> articles) {
+        this.articles = articles;
+    }
+
 }
