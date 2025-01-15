@@ -23,7 +23,7 @@ public class CategoryController {
     private CategoryDTO convertToDTO(Category category) {
         CategoryDTO categoryDTO = new CategoryDTO();
         categoryDTO.setId(category.getCategoryId());
-        categoryDTO.setName(categoryDTO.getName());
+        categoryDTO.setName(category.getName());
         if(category.getArticles() != null) {
             categoryDTO.setArticles(category.getArticles().stream().map(article -> {
                 ArticleDTO articleDTO = new ArticleDTO();
