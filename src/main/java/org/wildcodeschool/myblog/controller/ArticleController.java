@@ -1,12 +1,19 @@
 package org.wildcodeschool.myblog.controller;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.wildcodeschool.myblog.dto.ArticleAuthorDTO;
 import org.wildcodeschool.myblog.dto.ArticleDTO;
+import org.wildcodeschool.myblog.dto.AuthorDTO;
 import org.wildcodeschool.myblog.model.Article;
-import org.wildcodeschool.myblog.model.Image;
+import org.wildcodeschool.myblog.model.ArticleAuthor;
+import org.wildcodeschool.myblog.model.Author;
 import org.wildcodeschool.myblog.model.Category;
+import org.wildcodeschool.myblog.model.Image;
 import org.wildcodeschool.myblog.repository.ArticleRepository;
+import org.wildcodeschool.myblog.repository.ArticleAuthorRepository;
+import org.wildcodeschool.myblog.repository.AuthorRepository;
 import org.wildcodeschool.myblog.repository.CategoryRepository;
 import org.wildcodeschool.myblog.repository.ImageRepository;
 
@@ -16,35 +23,26 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/articles")
-
-
+@RequestMapping ("/articles")
 public class ArticleController {
-
-    private ArticleDTO convertToDTO(Article article) {
-        ArticleDTO articleDTO = new ArticleDTO();
-        articleDTO.setId(article.getId());
-        articleDTO.setTitle(article.getTitle());
-        articleDTO.setContent(article.getContent());
-        articleDTO.setUpdatedAt(article.getUpdatedAt());
-        if (article.getCategory() != null) {
-            articleDTO.setCategoryName(article.getCategory().getName());
-        }
-        if (article.getImages() != null) {
-            articleDTO.setImageUrls(article.getImages().stream().map(Image::getUrl).collect(Collectors.toList()));
-        }
-        return articleDTO;
-    }
-
     private final ArticleRepository articleRepository;
     private final CategoryRepository categoryRepository;
     private final ImageRepository imageRepository;
+    private final ArticleAuthorRepository articleAuthorRepository;
+    private final AuthorRepository authorRepository;
 
-
-    public ArticleController(ArticleRepository articleRepository, CategoryRepository categoryRepository, ImageRepository imageRepository) {
+    public ArticleController(
+            ArticleRepository articleRepository,
+            CategoryRepository categoryRepository,
+            ImageRepository imageRepository,
+            ArticleAuthorRepository articleAuthorRepository,
+            AuthorRepository authorRepository
+    ) {
         this.articleRepository = articleRepository;
         this.categoryRepository = categoryRepository;
         this.imageRepository = imageRepository;
+        this.articleAuthorRepository = articleAuthorRepository;
+        this.authorRepository = authorRepository;
     }
 
     @GetMapping
@@ -53,19 +51,11 @@ public class ArticleController {
         if (articles.isEmpty()) {
             return ResponseEntity.noContent().build();
         }
-        List<ArticleDTO> articleDTOs = articles.stream().map(this::convertToDTO).collect(Collectors.toList());
+        List<ArticleDTO> articleDTOs = articles.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+
         return ResponseEntity.ok(articleDTOs);
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<ArticleDTO> getArticleById(@PathVariable Long id) {
-
-        Article article = articleRepository.findById(id).orElse(null);
-        if (article == null) {
-            return ResponseEntity.notFound().build();
-        }
-
-        return ResponseEntity.ok(convertToDTO(article));
     }
 
     @GetMapping("/search-title")
@@ -77,22 +67,13 @@ public class ArticleController {
         return ResponseEntity.ok(articles);
     }
 
-    @GetMapping("/search-date")
-    public ResponseEntity<List<Article>> getArticleByDate(@RequestParam LocalDateTime searchDate) {
-        List<Article> articles = articleRepository.findByCreatedAtAfter(searchDate);
-        if (articles.isEmpty()) {
-            return ResponseEntity.noContent().build();
+    @GetMapping("/{id}")
+    public ResponseEntity<ArticleDTO> getArticleById(@PathVariable Long id) {
+        Article article = articleRepository.findById(id).orElse(null);
+        if (article == null) {
+            return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(articles);
-    }
-
-    @GetMapping("/latest")
-    public ResponseEntity<List<Article>> getLatestArticles() {
-        List<Article> articles = articleRepository.findTop5ByOrderByCreatedAtDesc();
-        if (articles.isEmpty()) {
-            return ResponseEntity.noContent().build();
-        }
-        return ResponseEntity.ok(articles);
+        return ResponseEntity.ok(convertToDTO(article));
     }
 
     @PostMapping
@@ -107,11 +88,11 @@ public class ArticleController {
             }
             article.setCategory(category);
         }
+
         if (article.getImages() != null && !article.getImages().isEmpty()) {
             List<Image> validImages = new ArrayList<>();
             for (Image image : article.getImages()) {
                 if (image.getId() != null) {
-                    // Vérification des images existantes
                     Image existingImage = imageRepository.findById(image.getId()).orElse(null);
                     if (existingImage != null) {
                         validImages.add(existingImage);
@@ -119,7 +100,6 @@ public class ArticleController {
                         return ResponseEntity.badRequest().body(null);
                     }
                 } else {
-                    // Création de nouvelles images
                     Image savedImage = imageRepository.save(image);
                     validImages.add(savedImage);
                 }
@@ -128,6 +108,21 @@ public class ArticleController {
         }
 
         Article savedArticle = articleRepository.save(article);
+
+        if (article.getArticleAuthors() != null) {
+            for (ArticleAuthor articleAuthor : article.getArticleAuthors()) {
+                Author author = articleAuthor.getAuthor();
+                author = authorRepository.findById(author.getId()).orElse(null);
+                if (author == null) {
+                    return ResponseEntity.badRequest().body(null);
+                }
+
+                articleAuthor.setAuthor(author);
+                articleAuthor.setArticle(savedArticle);
+                articleAuthorRepository.save(articleAuthor);
+            }
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(savedArticle));
     }
 
@@ -137,7 +132,6 @@ public class ArticleController {
         if (article == null) {
             return ResponseEntity.notFound().build();
         }
-
         article.setTitle(articleDetails.getTitle());
         article.setContent(articleDetails.getContent());
         article.setUpdatedAt(LocalDateTime.now());
@@ -145,47 +139,107 @@ public class ArticleController {
         if (articleDetails.getCategory() != null) {
             Category category = categoryRepository.findById(articleDetails.getCategory().getCategoryId()).orElse(null);
             if (category == null) {
-                return ResponseEntity.badRequest().body(null);
+                return ResponseEntity.badRequest().build();
             }
             article.setCategory(category);
         }
+
         if (articleDetails.getImages() != null) {
             List<Image> validImages = new ArrayList<>();
             for (Image image : articleDetails.getImages()) {
                 if (image.getId() != null) {
-                    // Vérification des images existantes
                     Image existingImage = imageRepository.findById(image.getId()).orElse(null);
                     if (existingImage != null) {
                         validImages.add(existingImage);
                     } else {
-                        return ResponseEntity.badRequest().build(); // Image non trouvée, retour d'une erreur
+                        return ResponseEntity.badRequest().build();
                     }
                 } else {
-                    // Création de nouvelles images
                     Image savedImage = imageRepository.save(image);
                     validImages.add(savedImage);
                 }
             }
-            // Mettre à jour la liste des images associées
             article.setImages(validImages);
         } else {
-            // Si aucune image n'est fournie, on nettoie la liste des images associées
             article.getImages().clear();
         }
+
+        if (articleDetails.getArticleAuthors() != null) {
+            // Supprimer les anciens ArticleAuthor
+            for (ArticleAuthor oldArticleAuthor : article.getArticleAuthors()) {
+                articleAuthorRepository.delete(oldArticleAuthor);
+            }
+
+            List<ArticleAuthor> updatedArticleAuthors = new ArrayList<>();
+
+            for (ArticleAuthor articleAuthorDetails : articleDetails.getArticleAuthors()) {
+                Author author = articleAuthorDetails.getAuthor();
+                author = authorRepository.findById(author.getId()).orElse(null);
+                if (author == null) {
+                    return ResponseEntity.badRequest().build();
+                }
+
+                ArticleAuthor newArticleAuthor = new ArticleAuthor();
+                newArticleAuthor.setAuthor(author);
+                newArticleAuthor.setArticle(article);
+                newArticleAuthor.setContribution(articleAuthorDetails.getContribution());
+
+                updatedArticleAuthors.add(articleAuthorRepository.save(newArticleAuthor));
+            }
+
+            article.setArticleAuthors(updatedArticleAuthors);
+        }
+
         Article updatedArticle = articleRepository.save(article);
         return ResponseEntity.ok(convertToDTO(updatedArticle));
-
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteArticle(@PathVariable Long id) {
-
         Article article = articleRepository.findById(id).orElse(null);
         if (article == null) {
             return ResponseEntity.notFound().build();
         }
 
+        if (article.getArticleAuthors() != null) {
+            for (ArticleAuthor articleAuthor : article.getArticleAuthors()) {
+                articleAuthorRepository.delete(articleAuthor);
+            }
+        }
+
         articleRepository.delete(article);
         return ResponseEntity.noContent().build();
+    }
+
+    private ArticleDTO convertToDTO(Article article) {
+        ArticleDTO articleDTO = new ArticleDTO();
+        articleDTO.setId(article.getId());
+        articleDTO.setTitle(article.getTitle());
+        articleDTO.setContent(article.getContent());
+        articleDTO.setUpdatedAt(article.getUpdatedAt());
+        if (article.getCategory() != null) {
+            articleDTO.setCategoryName(article.getCategory().getName());
+        }
+        if (article.getImages() != null) {
+            articleDTO.setImageUrls(article.getImages().stream()
+                    .map(Image::getUrl)
+                    .collect(Collectors.toList()));
+        }
+
+        if (article.getArticleAuthors() != null) {
+            List<ArticleAuthorDTO> articleAuthorDTOs = article.getArticleAuthors().stream()
+                    .map(articleAuthor -> {
+                        ArticleAuthorDTO dto = new ArticleAuthorDTO();
+                        dto.setId(articleAuthor.getId());
+                        dto.setArticleId(articleAuthor.getArticle().getId());
+                        dto.setAuthorId(articleAuthor.getAuthor().getId());
+                        dto.setContribution(articleAuthor.getContribution());
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+            articleDTO.setAuthors(articleAuthorDTOs);
+        }
+
+        return articleDTO;
     }
 }
