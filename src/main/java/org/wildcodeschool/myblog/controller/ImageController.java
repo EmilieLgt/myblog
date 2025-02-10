@@ -7,77 +7,50 @@ import org.wildcodeschool.myblog.model.Image;
 import org.wildcodeschool.myblog.model.Article;
 import org.wildcodeschool.myblog.repository.ImageRepository;
 import org.wildcodeschool.myblog.repository.ArticleRepository;
+import org.wildcodeschool.myblog.service.ImageService;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+
 @RestController
 @RequestMapping("/images")
 public class ImageController {
+    private final ImageService imageService;
 
-    private final ImageRepository imageRepository;
-    private final ArticleRepository articleRepository;
-
-    public ImageController(ImageRepository imageRepository, ArticleRepository articleRepository) {
-        this.imageRepository = imageRepository;
-        this.articleRepository = articleRepository;
+    public ImageController(ImageService imageService) {
+        this.imageService = imageService;
     }
 
     @GetMapping
     public ResponseEntity<List<ImageDTO>> getAllImages() {
-        List<Image> images = imageRepository.findAll();
-        if (images.isEmpty()) {
-            return ResponseEntity.noContent().build();
-        }
-        List<ImageDTO> imageDTOs = images.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(imageDTOs);
+        List<ImageDTO> images = imageService.getAllImages();
+        return images.isEmpty() ? ResponseEntity.noContent().build()
+                : ResponseEntity.ok(images);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ImageDTO> getImageById(@PathVariable Long id) {
-        Image image = imageRepository.findById(id).orElse(null);
-        if (image == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(convertToDTO(image));
+        ImageDTO image = imageService.getImageById(id);
+        return image == null ? ResponseEntity.notFound().build()
+                : ResponseEntity.ok(image);
     }
 
     @PostMapping
-    public ResponseEntity<ImageDTO> createImage(@RequestBody Image image) {
-        Image savedImage = imageRepository.save(image);
-        return ResponseEntity.status(201).body(convertToDTO(savedImage));
+    public ResponseEntity<ImageDTO> createImage(@RequestBody ImageDTO imageDTO) {
+        return ResponseEntity.status(201).body(imageService.createImage(imageDTO));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ImageDTO> updateImage(@PathVariable Long id, @RequestBody Image imageDetails) {
-        Image image = imageRepository.findById(id).orElse(null);
-        if (image == null) {
-            return ResponseEntity.notFound().build();
-        }
-        image.setUrl(imageDetails.getUrl());
-        Image updatedImage = imageRepository.save(image);
-        return ResponseEntity.ok(convertToDTO(updatedImage));
+    public ResponseEntity<ImageDTO> updateImage(@PathVariable Long id, @RequestBody ImageDTO imageDTO) {
+        ImageDTO updatedImage = imageService.updateImage(id, imageDTO);
+        return updatedImage == null ? ResponseEntity.notFound().build()
+                : ResponseEntity.ok(updatedImage);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteImage(@PathVariable Long id) {
-        Image image = imageRepository.findById(id).orElse(null);
-        if (image == null) {
-            return ResponseEntity.notFound().build();
-        }
-        imageRepository.delete(image);
-        return ResponseEntity.noContent().build();
-    }
-
-    private ImageDTO convertToDTO(Image image) {
-        ImageDTO imageDTO = new ImageDTO();
-        imageDTO.setId(image.getId());
-        imageDTO.setUrl(image.getUrl());
-        if (image.getArticles() != null) {
-            imageDTO.setArticleIds(image.getArticles().stream().map(Article::getId).collect(Collectors.toList()));
-        }
-        return imageDTO;
+        return imageService.deleteImage(id) ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
     }
 }

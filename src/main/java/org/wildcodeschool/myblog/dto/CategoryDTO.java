@@ -9,7 +9,7 @@ public class CategoryDTO {
 
     // Getters et setters
 
-    public Long getId() {
+    public Long getId(Long categoryId) {
         return id;
     }
 
