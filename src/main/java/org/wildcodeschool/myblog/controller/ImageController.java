@@ -1,6 +1,7 @@
 package org.wildcodeschool.myblog.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.wildcodeschool.myblog.dto.ImageDTO;
 import org.wildcodeschool.myblog.model.Image;
@@ -22,6 +23,8 @@ public class ImageController {
         this.imageService = imageService;
     }
 
+    // on autorise que les admins ici, ok
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @GetMapping
     public ResponseEntity<List<ImageDTO>> getAllImages() {
         List<ImageDTO> images = imageService.getAllImages();

@@ -6,19 +6,25 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.wildcodeschool.myblog.dto.UserLoginDTO;
 import org.wildcodeschool.myblog.dto.UserRegistrationDTO;
 import org.wildcodeschool.myblog.model.User;
+import org.wildcodeschool.myblog.security.AuthentificationService;
 import org.wildcodeschool.myblog.service.UserService;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
      private final UserService userService;
+    private final AuthentificationService authentificationService;
 
-    public AuthController(UserService userService) {
+    public AuthController(UserService userService, AuthentificationService authentificationService) {
         this.userService = userService;
+        this.authentificationService = authentificationService;
     }
 
     @PostMapping("/register")
@@ -29,5 +35,15 @@ public class AuthController {
                 Set.of("ROLE_USER") // Par défaut, chaque utilisateur aura le rôle "USER"
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(registeredUser);
+    }
+    @PostMapping("/login")
+    public ResponseEntity<Map<String, String>> authenticate(@RequestBody UserLoginDTO userLoginDTO) {
+        String token = authentificationService.authenticate(
+                userLoginDTO.getEmail(),
+                userLoginDTO.getPassword()
+        );
+        Map<String, String> response = new HashMap<>();
+        response.put("token", token);
+        return ResponseEntity.ok(response);
     }
 }
